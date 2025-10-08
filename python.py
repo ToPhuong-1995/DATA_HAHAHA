@@ -1,5 +1,3 @@
-# python.py
-
 import streamlit as st
 import pandas as pd
 from google import genai
@@ -183,3 +181,47 @@ if uploaded_file is not None:
 
 else:
     st.info("Vui lòng tải lên file Excel để bắt đầu phân tích.")
+
+# --- Chức năng 6: Khung Chat với Gemini AI ---
+st.markdown("---")
+st.subheader("💬 Trò chuyện với Gemini AI")
+
+chat_api_key = st.secrets.get("GEMINI_API_KEY")
+
+if not chat_api_key:
+    st.error("Không tìm thấy Khóa API. Vui lòng cấu hình 'GEMINI_API_KEY' trong Streamlit Secrets.")
+else:
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    # Hiển thị lịch sử chat nếu có
+    for message in st.session_state.chat_history:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    user_input = st.chat_input("Nhập câu hỏi về tài chính hoặc dữ liệu bạn đang phân tích...")
+
+    if user_input:
+        with st.chat_message("user"):
+            st.markdown(user_input)
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+
+        # Tạo client và gửi message
+        try:
+            client = genai.Client(api_key=chat_api_key)
+            model_name = "gemini-2.5-flash"
+            chat_client = client.models.start_chat(model=model_name)
+
+            # Gửi tất cả lịch sử (để tạo context) + câu hỏi mới
+            # Lưu ý: nếu chat history quá dài, có thể bị giới hạn token => có thể cần tối ưu
+            for msg in st.session_state.chat_history:
+                chat_client.add_message(role=msg["role"], content=msg["content"])
+
+            response = chat_client.send_message(user_input)
+
+            with st.chat_message("assistant"):
+                st.markdown(response.text)
+            st.session_state.chat_history.append({"role": "assistant", "content": response.text})
+
+        except Exception as e:
+            st.error(f"Đã xảy ra lỗi khi gọi Gemini: {e}")
